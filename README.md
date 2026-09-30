@@ -9,7 +9,7 @@ Pebble adds a small, always-accessible writing window from your system tray/menu
 - **Minimal** — small and distraction-free writing window.
 - **Menu-bar toggle** — click the Pebble icon to open/close the note window.
 - **Anchored window** — opens near the tray/menu bar icon for quick access.
-- **Auto-close on blur** — closes when you click outside the pop-out window.
+- **Persistent panel** — stays open when switching apps or desktops; click the menu-bar icon again to close.
 - **Single-file focus** — choose one markdown note from your vault; Pebble reads and writes only that file.
 - **Fast autosave** — edits are written back to disk automatically.
 - **Tray icon style** — choose between color and monochrome menu bar icons.

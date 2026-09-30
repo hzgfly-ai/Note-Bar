@@ -190,14 +190,8 @@ export class NativeWindow {
 				this.win = null;
 			});
 
-			win.on("blur", () => {
-				window.setTimeout(() => {
-					if (!this.win || this.win !== win || win.isDestroyed()) {
-						return;
-					}
-					void this.close();
-				}, 80);
-			});
+			// Keep the panel open across app/Space switches. The tray icon
+			// toggles it closed explicitly, saving pending content first.
 
 			this.win = win;
 
