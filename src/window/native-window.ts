@@ -176,6 +176,10 @@ export class NativeWindow {
 				frame: currentPlatform() === "darwin" ? false : undefined,
 				skipTaskbar: true,
 				show: false,
+				// A non-activating macOS panel accepts typing without raising
+				// the other Obsidian windows when opened from another app.
+				type: currentPlatform() === "darwin" ? "panel" : undefined,
+				acceptFirstMouse: currentPlatform() === "darwin" ? true : undefined,
 				webPreferences: {
 					nodeIntegration: false,
 					contextIsolation: true,
@@ -214,9 +218,11 @@ export class NativeWindow {
 			} else {
 				this.positionNearTray(win, remote, anchorBounds, settings);
 			}
-			win.show();
-			win.focus();
 			this.listenForEditorChanges();
+			win.show();
+			// Explicit focus activates the owning app on macOS, defeating
+			// the panel's non-activating behavior. show() makes it key already.
+			if (currentPlatform() !== "darwin") win.focus();
 		} catch (err) {
 			this.win = null;
 			const errorMessage =

@@ -39,6 +39,8 @@ interface ElectronBrowserWindowOptions {
 	show?: boolean;
 	frame?: boolean;
 	skipTaskbar?: boolean;
+	type?: "panel";
+	acceptFirstMouse?: boolean;
 	webPreferences?: {
 		nodeIntegration?: boolean;
 		contextIsolation?: boolean;
