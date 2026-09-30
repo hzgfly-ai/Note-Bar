@@ -8,7 +8,7 @@ declare module "*.css" {
 	export default value;
 }
 
-declare module "*.template.js" {
+declare module "pebble:editor-script" {
 	const value: string;
 	export default value;
 }

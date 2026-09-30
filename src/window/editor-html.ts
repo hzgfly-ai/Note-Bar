@@ -1,11 +1,7 @@
 import editorTemplate from "../editor/editor-template.html";
 import editorStyles from "../editor/editor.css";
-import editorScriptTemplate from "../editor/editor-script.template.js";
+import editorScriptBundle from "pebble:editor-script";
 import { PebbleThemeMode } from "../settings";
-
-function replaceToken(template: string, token: string, value: string): string {
-	return template.split(token).join(value);
-}
 
 /**
  * Builds the complete HTML document string for the standalone Pebble editor.
@@ -22,30 +18,26 @@ export function buildEditorHTML(
 		.replace(/&/g, "&amp;")
 		.replace(/</g, "&lt;")
 		.replace(/>/g, "&gt;");
-	const serializedInitialContent = JSON.stringify(initialContent);
-	const escapedInitialContentForTextarea = initialContent
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;");
-	const editorScript = editorScriptTemplate
-		.split("__INITIAL_CONTENT__")
-		.join(serializedInitialContent);
-
-	let html = editorTemplate;
-	html = replaceToken(html, "__EDITOR_STYLE__", editorStyles);
-	html = replaceToken(html, "__THEME_BODY_ATTR__", themeBodyAttr);
-	html = replaceToken(
-		html,
-		"__NOTE_TITLE_HIDDEN_ATTR__",
-		showNoteTitle ? "" : "hidden",
+	// Notes can contain HTML/script examples. They must remain plain text even
+	// when placed in an inline script in the standalone panel document.
+	const serializedInitialContent = JSON.stringify(initialContent).replace(
+		/</g,
+		"\\u003c",
 	);
-	html = replaceToken(
-		html,
-		"__INITIAL_CONTENT__",
-		escapedInitialContentForTextarea,
-	);
-	html = replaceToken(html, "__NOTE_TITLE__", escapedNoteTitleForHtml);
-	html = replaceToken(html, "__EDITOR_SCRIPT__", editorScript);
+	const editorScript =
+		`window.__pebbleInitialContent = ${serializedInitialContent};\n` +
+		editorScriptBundle.replace(/<\/script/gi, "<\\/script");
 
-	return html;
+	const replacements: Record<string, string> = {
+		__EDITOR_STYLE__: editorStyles,
+		__THEME_BODY_ATTR__: themeBodyAttr,
+		__NOTE_TITLE_HIDDEN_ATTR__: showNoteTitle ? "" : "hidden",
+		__NOTE_TITLE__: escapedNoteTitleForHtml,
+		__EDITOR_SCRIPT__: editorScript,
+	};
+	// Replace template tokens in one pass so tokens inside a note stay literal.
+	return editorTemplate.replace(
+		/__EDITOR_STYLE__|__THEME_BODY_ATTR__|__NOTE_TITLE_HIDDEN_ATTR__|__NOTE_TITLE__|__EDITOR_SCRIPT__/g,
+		(token) => replacements[token]!,
+	);
 }

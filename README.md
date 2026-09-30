@@ -12,6 +12,7 @@ Pebble adds a small, always-accessible writing window from your system tray/menu
 - **Persistent panel** — stays open when switching apps or desktops; click the menu-bar icon again to close.
 - **Single-file focus** — choose one markdown note from your vault; Pebble reads and writes only that file.
 - **Fast autosave** — edits are written back to disk automatically.
+- **Markdown editor** — muted syntax markers, styled headings and emphasis, nested lists with hanging indents, Tab/Shift-Tab indentation, list continuation, and undo/redo. Powered by a bundled CodeMirror 6 editor that keeps the original Markdown text.
 - **Tray icon style** — choose between color and monochrome menu bar icons.
 - **Color mode** — choose a light or dark editor background.
 

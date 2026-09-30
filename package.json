@@ -25,5 +25,13 @@
 		"typescript": "^5.8.3",
 		"typescript-eslint": "8.70.1",
 		"vitest": "^5.0.2"
+	},
+	"dependencies": {
+		"@codemirror/commands": "6.8.1",
+		"@codemirror/lang-markdown": "^6.5.2",
+		"@codemirror/language": "^6.12.4",
+		"@codemirror/state": "6.5.0",
+		"@codemirror/view": "6.38.6",
+		"@lezer/highlight": "^1.2.5"
 	}
 }

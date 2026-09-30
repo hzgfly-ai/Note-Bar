@@ -10,7 +10,37 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = process.argv[2] === "production";
 
+// The panel has nodeIntegration disabled, so its editor needs a browser bundle
+// of its own. Embed it in main.js; no runtime files or network requests needed.
+const panelEditor = {
+	name: "panel-editor",
+	setup(build) {
+		build.onResolve({ filter: /^pebble:editor-script$/ }, () => ({
+			path: "editor-script",
+			namespace: "panel-editor",
+		}));
+		build.onLoad({ filter: /.*/, namespace: "panel-editor" }, async () => {
+			const result = await esbuild.build({
+				entryPoints: ["src/editor/editor.ts"],
+				bundle: true,
+				platform: "browser",
+				format: "iife",
+				target: "es2018",
+				minify: prod,
+				write: false,
+				metafile: true,
+			});
+			return {
+				contents: `export default ${JSON.stringify(result.outputFiles[0].text)}`,
+				loader: "js",
+				watchFiles: Object.keys(result.metafile.inputs),
+			};
+		});
+	},
+};
+
 const context = await esbuild.context({
+	plugins: [panelEditor],
 	banner: {
 		js: banner,
 	},

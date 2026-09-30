@@ -15,12 +15,16 @@ body {
 	--pebble-editor-bg-color: #0f1114;
 	--pebble-editor-text-color: #e6e9ee;
 	--pebble-editor-muted-color: #9aa3b2;
+	--pebble-editor-link-color: #91b7ed;
+	--pebble-editor-code-bg: #ffffff0b;
 }
 
 body[data-pebble-theme="light"] {
 	--pebble-editor-bg-color: #ffffff;
 	--pebble-editor-text-color: #1f2328;
 	--pebble-editor-muted-color: #68707d;
+	--pebble-editor-link-color: #3569a8;
+	--pebble-editor-code-bg: #00000006;
 }
 
 body[data-pebble-theme="dark"] {
@@ -86,7 +90,6 @@ body {
 	border: none;
 	outline: none;
 	resize: none;
-	padding: 24px;
 	font-family: inherit;
 	font-size: 15px;
 	line-height: 1.75;
@@ -94,19 +97,53 @@ body {
 	background: transparent;
 	color: inherit;
 	tab-size: 4;
+}
+
+.cm-editor {
+	height: 100%;
+}
+
+.cm-editor.cm-focused {
+	outline: none;
+}
+
+.cm-scroller {
+	font-family: inherit !important;
+	line-height: inherit !important;
 	overflow: auto;
 	scrollbar-width: none;
 	-ms-overflow-style: none;
 }
 
-#editor::-webkit-scrollbar {
+#editor .cm-content {
+	padding: 24px;
+	caret-color: var(--pebble-editor-text-color);
+}
+
+#editor .cm-line {
+	padding: 0;
+}
+
+.pebble-list-prefix {
+	font-family: Menlo, monospace;
+}
+
+.cm-scroller::-webkit-scrollbar {
 	width: 0;
 	height: 0;
 	display: none;
 }
 
-#editor::placeholder {
+.cm-placeholder {
 	color: var(--pebble-editor-muted-color);
+}
+
+.cm-cursor {
+	border-left-color: var(--pebble-editor-text-color);
+}
+
+#editor .cm-selectionBackground {
+	background: #7a9fd044;
 }
 
 @media (max-width: 560px) {
@@ -114,7 +151,7 @@ body {
 		padding: 0;
 	}
 
-	#editor {
+	#editor .cm-content {
 		padding: 18px;
 	}
 }
