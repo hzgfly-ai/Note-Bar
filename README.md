@@ -53,3 +53,7 @@ Install Pebble directly from its [community plugin page](https://community.obsid
 | **Monochrome tray icon** | Use a monochrome tray icon that blends in.       | Off     |
 | **Show note title**      | Show the note title as a subtle background hint. | On      |
 | **Color mode**           | Choose a white or dark editor background.        | Dark    |
+
+### Local fork: note controls
+
+The panel now offers a folder tree and path search, new notes using Obsidian's default location and naming rules, today's daily note through the enabled core Daily notes plugin, and copying the entire Markdown source. Switching waits for pending writes and resets undo history. Failed writes keep the current note open. Native note creation and daily-note calls are internal APIs with runtime guards; compatibility must be checked on new Obsidian versions. No runtime network resources are used.

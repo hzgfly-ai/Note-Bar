@@ -1,4 +1,4 @@
-import { Plugin, TFile } from "obsidian";
+import { Plugin } from "obsidian";
 import { DEFAULT_SETTINGS, PebbleSettings, PebbleSettingTab } from "./settings";
 import { NativeWindow } from "./window/native-window";
 import { PebbleTray } from "./tray";
@@ -22,21 +22,9 @@ export default class PebblePlugin extends Plugin {
 			this.tray?.destroy();
 		});
 
-		this.registerEvent(
-			this.app.vault.on("rename", (file, oldPath) => {
-				if (!(file instanceof TFile) || file.extension !== "md") {
-					return;
-				}
-
-				if (this.settings.notePath !== oldPath) {
-					return;
-				}
-
-				this.settings.notePath = file.path;
-				this.overlayWindow?.handleNotePathRenamed(oldPath, file.path);
-				void this.saveSettings();
-			}),
-		);
+		this.registerEvent(this.app.vault.on("rename", (file, oldPath) => this.overlayWindow?.handleNotePathRenamed(file, oldPath)));
+		this.registerEvent(this.app.vault.on("create", () => this.overlayWindow?.refreshCatalog()));
+		this.registerEvent(this.app.vault.on("delete", () => this.overlayWindow?.refreshCatalog()));
 
 		this.registerEvent(
 			this.app.vault.on("modify", (file) => {

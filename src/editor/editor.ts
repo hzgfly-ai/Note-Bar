@@ -1,4 +1,4 @@
-import { Annotation, EditorState, Transaction } from "@codemirror/state";
+import { Annotation, Compartment, EditorState, Transaction } from "@codemirror/state";
 import { EditorView, drawSelection, keymap, placeholder } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { HighlightStyle, indentUnit, syntaxHighlighting } from "@codemirror/language";
@@ -9,6 +9,7 @@ import {
 	markdownLanguage,
 } from "@codemirror/lang-markdown";
 import { tags } from "@lezer/highlight";
+import { setupPanel } from "./panel-controls";
 import { listLayout } from "./list-layout";
 import { expandTaskShortcut, insertClosingFence } from "./markdown-shortcuts";
 
@@ -43,11 +44,10 @@ const highlights = HighlightStyle.define([
 
 const parent = document.getElementById("editor");
 if (parent) {
-	const view = new EditorView({
-		parent,
-		state: EditorState.create({
-			doc: window.__pebbleInitialContent ?? "",
-			extensions: [
+	const readOnly = new Compartment();
+	let getPath = () => window.__pebbleInitialPanel?.path ?? "";
+	const extensions = [
+		readOnly.of(EditorState.readOnly.of(false)),
 				markdown({ base: markdownLanguage, addKeymap: false, completeHTMLTags: false, pasteURLAsLink: false }),
 				syntaxHighlighting(highlights),
 				listLayout,
@@ -70,11 +70,16 @@ if (parent) {
 				EditorView.updateListener.of((update) => {
 					if (update.docChanged && !update.transactions.some((tr) => tr.annotation(externalUpdate))) {
 						// The standalone panel uses Electron console-message as its save bridge.
-						console.debug("__pebble_save:" + JSON.stringify(update.state.doc.toString()));
+						console.debug("__pebble_save:" + JSON.stringify({ path: getPath(), content: update.state.doc.toString() }));
 					}
 				}),
-			],
-		}),
+	];
+	const view = new EditorView({ parent, state: EditorState.create({ doc: window.__pebbleInitialContent ?? "", extensions }) });
+	getPath = setupPanel({
+		getContent: () => view.state.doc.toString(),
+		setBusy: (busy) => view.dispatch({ effects: readOnly.reconfigure([EditorState.readOnly.of(busy), EditorView.editable.of(!busy)]) }),
+		setNote: (content) => view.setState(EditorState.create({ doc: content, extensions })),
+		focus: () => view.focus(),
 	});
 
 	window.__pebbleEditor = {

@@ -1,6 +1,7 @@
 import editorTemplate from "../editor/editor-template.html";
 import editorStyles from "../editor/editor.css";
 import editorScriptBundle from "pebble:editor-script";
+import { PanelSnapshot } from "./panel-types";
 import { PebbleThemeMode } from "../settings";
 
 /**
@@ -11,6 +12,7 @@ export function buildEditorHTML(
 	noteTitle: string,
 	showNoteTitle: boolean,
 	themeMode: PebbleThemeMode,
+	panel?: PanelSnapshot,
 ): string {
 	const normalizedTheme = themeMode === "light" ? "light" : "dark";
 	const themeBodyAttr = `data-pebble-theme="${normalizedTheme}"`;
@@ -25,7 +27,7 @@ export function buildEditorHTML(
 		"\\u003c",
 	);
 	const editorScript =
-		`window.__pebbleInitialContent = ${serializedInitialContent};\n` +
+		`window.__pebbleInitialContent = ${serializedInitialContent};\nwindow.__pebbleInitialPanel = ${JSON.stringify(panel ?? null).replace(/</g, "\\u003c")};\n` +
 		editorScriptBundle.replace(/<\/script/gi, "<\\/script");
 
 	const replacements: Record<string, string> = {

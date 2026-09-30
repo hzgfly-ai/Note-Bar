@@ -6,6 +6,7 @@
 let cachedRemote: ElectronRemote | null = null;
 
 interface ElectronRemote {
+	clipboard?: { writeText(text: string): void };
 	nativeImage: { createFromDataURL(url: string): ElectronNativeImage };
 	Tray: new (image: ElectronNativeImage) => ElectronTray;
 	BrowserWindow: new (

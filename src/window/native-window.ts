@@ -1,4 +1,4 @@
-import { App, Notice, TAbstractFile, TFile, normalizePath } from "obsidian";
+import { App, Notice, TAbstractFile, TFile, TFolder, normalizePath } from "obsidian";
 import {
 	ElectronBrowserWindowInstance,
 	ElectronRectangle,
@@ -7,6 +7,9 @@ import {
 import { buildEditorHTML } from "./editor-html";
 import { calculateWindowPosition } from "./position";
 import { PebbleSettings } from "../settings";
+import { NoteService } from "./note-service";
+import { NoteSession } from "./note-session";
+import { PanelRequest, PanelResponse, PanelSnapshot } from "./panel-types";
 
 function currentPlatform(): NodeJS.Platform {
 	return process.platform;
@@ -18,12 +21,12 @@ export class NativeWindow {
 	private app: App;
 	private readSettings: () => PebbleSettings;
 	private saveSettings: () => Promise<void>;
-	private noteFile: TFile | null = null;
-	private pendingContent: string | null = null;
+	private session: NoteSession<TFile>;
+	private notes: NoteService;
+	private actions: Promise<void> = Promise.resolve();
+	private switching = false;
 	private closePromise: Promise<void> | null = null;
-	private isSaving = false;
 	private suppressModifyUntil = 0;
-	private lastKnownContent = "";
 
 	constructor(
 		app: App,
@@ -33,6 +36,14 @@ export class NativeWindow {
 		this.app = app;
 		this.readSettings = readSettings;
 		this.saveSettings = saveSettings;
+		this.notes = new NoteService(app);
+		this.session = new NoteSession(async (file, content) => {
+			this.suppressModifyUntil = Date.now() + 1500;
+			const active = this.app.workspace.getActiveFile();
+			const editor = this.app.workspace.activeEditor?.editor;
+			if (active === file && editor) editor.setValue(content);
+			await this.app.vault.process(file, () => content);
+		});
 	}
 
 	async toggle(anchorBounds?: ElectronRectangle): Promise<void> {
@@ -62,22 +73,21 @@ export class NativeWindow {
 	}
 
 	private async doClose(): Promise<void> {
-		const file = this.noteFile;
-		const content = this.pendingContent;
-		if (file && content !== null && content !== this.lastKnownContent) {
-			this.suppressModifyUntil = Date.now() + 1500;
-			try {
-				await this.app.vault.process(file, () => content);
-			} catch {
-				// Best effort on close
+		await this.actions;
+		try {
+			// Pull the editor synchronously before closing, including the final
+			// keystroke whose console-message event may still be in transit.
+			if (this.win && !this.win.isDestroyed()) {
+				const content = await this.win.webContents.executeJavaScript("window.__pebblePanel?.pause()");
+				if (typeof content === "string") this.session.queue(content);
 			}
+			await this.session.flush();
+		} catch (error) {
+			await this.respond({ error: `保存失败，面板保持打开：${String(error)}` });
+			return;
 		}
-
-		this.noteFile = null;
-		this.pendingContent = null;
-		this.lastKnownContent = "";
+		this.session.load(null, "");
 		this.suppressModifyUntil = 0;
-		this.isSaving = false;
 
 		if (!this.win || this.win.isDestroyed()) {
 			this.win = null;
@@ -112,33 +122,40 @@ export class NativeWindow {
 		return true;
 	}
 
-	handleNotePathRenamed(oldPath: string, newPath: string): void {
-		if (!this.noteFile || this.noteFile.path !== oldPath) {
-			return;
+	refreshCatalog(): void {
+		if (this.isOpen() && !this.switching && !this.closePromise) {
+			void this.respond({ snapshot: this.snapshot() });
 		}
+	}
 
-		const abstract = this.app.vault.getAbstractFileByPath(
-			normalizePath(newPath),
-		);
-		if (abstract instanceof TFile && abstract.extension === "md") {
-			this.noteFile = abstract;
+	handleNotePathRenamed(file: TAbstractFile, oldPath: string): void {
+		if (this.session.file) {
+			this.readSettings().notePath = this.session.file.path;
+			void this.saveSettings();
+		} else {
+			const settings = this.readSettings();
+			if (settings.notePath === oldPath || settings.notePath.startsWith(oldPath + "/")) {
+				settings.notePath = file.path + settings.notePath.slice(oldPath.length);
+				void this.saveSettings();
+			}
 		}
+		this.refreshCatalog();
 	}
 
 	onVaultModify(file: TAbstractFile): void {
 		if (
 			!(file instanceof TFile) ||
 			file.extension !== "md" ||
-			!this.noteFile ||
-			file.path !== this.noteFile.path ||
+			!this.session.file ||
+			file.path !== this.session.file.path ||
 			!this.isOpen() ||
-			this.isSaving ||
+			this.session.isSaving || this.session.dirty || this.switching ||
 			Date.now() < this.suppressModifyUntil
 		) {
 			return;
 		}
 
-		void this.reloadEditorFromVault(file);
+		void this.reloadEditorFromVault(file).catch((error: unknown) => this.respond({ error: `读取失败：${String(error)}` }));
 	}
 
 	private async open(anchorBounds?: ElectronRectangle): Promise<void> {
@@ -148,11 +165,6 @@ export class NativeWindow {
 
 		this.opening = true;
 		const noteFile = this.resolveNoteFile();
-		if (!noteFile) {
-			this.opening = false;
-			return;
-		}
-		this.noteFile = noteFile;
 
 		const remote = getRemote();
 		if (!remote) {
@@ -162,13 +174,10 @@ export class NativeWindow {
 		}
 
 		const settings = this.readSettings();
-		const initialContent = await this.readInitialContent(noteFile);
-		this.lastKnownContent = initialContent;
-		const basename =
-			settings.notePath.split("/").pop()?.replace(/\.md$/, "") ??
-			"Pebble";
-
 		try {
+			const initialContent = noteFile ? await this.app.vault.read(noteFile) : "";
+			this.session.load(noteFile, initialContent);
+			const basename = noteFile?.basename ?? "选择笔记";
 			const win = new remote.BrowserWindow({
 				width: settings.windowWidth,
 				height: settings.windowHeight,
@@ -200,6 +209,7 @@ export class NativeWindow {
 				basename,
 				settings.showNoteTitle,
 				settings.themeMode,
+				this.snapshot(),
 			);
 			const editorDataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(
 				html,
@@ -218,6 +228,7 @@ export class NativeWindow {
 			// the panel's non-activating behavior. show() makes it key already.
 			if (currentPlatform() !== "darwin") win.focus();
 		} catch (err) {
+			if (this.win && !this.win.isDestroyed()) this.win.destroy();
 			this.win = null;
 			const errorMessage =
 				err instanceof Error ? err.message : String(err);
@@ -262,136 +273,103 @@ export class NativeWindow {
 	}
 
 	private resolveNoteFile(): TFile | null {
-		const notePath = this.readSettings().notePath.trim();
-		if (!notePath) {
-			new Notice("Pebble: select a note in plugin settings first.");
-			return null;
-		}
-
-		const normalizedPath = normalizePath(notePath);
-		if (!normalizedPath.endsWith(".md")) {
-			new Notice("Pebble: selected note is not a Markdown file.");
-			return null;
-		}
-
-		const abstract = this.app.vault.getAbstractFileByPath(normalizedPath);
-		if (!(abstract instanceof TFile) || abstract.extension !== "md") {
-			new Notice("Pebble: selected note does not exist in the vault.");
-			return null;
-		}
-
-		return abstract;
+		const path = normalizePath(this.readSettings().notePath.trim());
+		const selected = this.app.vault.getAbstractFileByPath(path);
+		if (selected instanceof TFile && selected.extension === "md") return selected;
+		const active = this.app.workspace.getActiveFile();
+		return active?.extension === "md" ? active : this.app.vault.getMarkdownFiles()[0] ?? null;
 	}
 
-	private async readInitialContent(file: TFile): Promise<string> {
-		try {
-			return await this.app.vault.read(file);
-		} catch {
-			return "";
-		}
+	private snapshot(): PanelSnapshot {
+		return {
+			path: this.session.file?.path ?? "",
+			title: this.session.file?.basename ?? "选择笔记",
+			content: this.session.content,
+			files: this.app.vault.getMarkdownFiles().map((file) => file.path).sort(),
+			folders: this.app.vault.getAllLoadedFiles().filter((file) => file instanceof TFolder).map((file) => file.path).sort(),
+			newNoteFolder: this.notes.newNoteFolder(this.session.file?.path ?? "").path,
+			dailyNotesAvailable: this.notes.dailyAvailable(),
+		};
 	}
 
 	private listenForEditorChanges(): void {
-		if (!this.win || this.win.isDestroyed()) return;
-
-		const SAVE_PREFIX = "__pebble_save:";
-
-		const webContents = this.win.webContents;
-		(
-			webContents as {
-				on(e: string, cb: (...args: unknown[]) => void): void;
-			}
-		).on(
-			"console-message",
-			(_event: unknown, _level: unknown, message: unknown) => {
-				if (
-					typeof message !== "string" ||
-					!message.startsWith(SAVE_PREFIX)
-				) {
-					return;
-				}
-				try {
-					const content: unknown = JSON.parse(
-						message.slice(SAVE_PREFIX.length),
-					);
-					if (typeof content === "string") {
-						this.onEditorInput(content);
+		this.win?.webContents.on("console-message", (...args: unknown[]) => {
+			// Electron supports both the legacy positional and newer details event.
+			const details = args[1] as { message?: unknown } | undefined;
+			const message = typeof args[2] === "string" ? args[2] : details?.message;
+			if (typeof message !== "string" || this.closePromise) return;
+			try {
+				if (message.startsWith("__pebble_save:")) {
+					const data = JSON.parse(message.slice("__pebble_save:".length)) as { path: string; content: string };
+					if (data.path === this.session.file?.path && typeof data.content === "string" && !this.switching) {
+						this.session.queue(data.content);
+						void this.session.flush().catch((error: unknown) => this.respond({ error: `保存失败：${String(error)}` }));
 					}
-				} catch {
-					// Ignore malformed messages
+				} else if (message.startsWith("__pebble_action:")) {
+					const request = JSON.parse(message.slice("__pebble_action:".length)) as PanelRequest;
+					this.actions = this.actions.then(() => this.handleAction(request)).catch((error: unknown) => this.respond({ id: request.id, error: String(error) }));
 				}
-			},
-		);
+			} catch { /* Ignore malformed renderer messages. */ }
+		});
 	}
 
-	private onEditorInput(content: string): void {
-		this.pendingContent = content;
-		void this.flushPendingContent();
-	}
-
-	private async flushPendingContent(): Promise<void> {
-		if (this.isSaving || !this.noteFile) return;
-
-		const content = this.pendingContent;
-		if (content === null || content === this.lastKnownContent) return;
-
-		await this.saveToVault(this.noteFile, content);
-
-		// Check if new content arrived while saving
-		if (
-			this.pendingContent !== null &&
-			this.pendingContent !== this.lastKnownContent
-		) {
-			void this.flushPendingContent();
+	private async handleAction(request: PanelRequest): Promise<void> {
+		if (!Number.isSafeInteger(request.id) || typeof request.content !== "string" || request.path !== (this.session.file?.path ?? "")) {
+			await this.respond({ id: request.id, error: "笔记已变化，请重新操作。" });
+			return;
 		}
-	}
-
-	private async saveToVault(file: TFile, content: string): Promise<void> {
-		this.isSaving = true;
-		this.suppressModifyUntil = Date.now() + 1500;
-
+		const changingNote = ["select", "create", "daily"].includes(request.action);
+		this.switching = changingNote;
 		try {
-			const activeFile = this.app.workspace.getActiveFile();
-			const activeEditor = this.app.workspace.activeEditor?.editor;
-			if (activeFile?.path === file.path && activeEditor) {
-				activeEditor.setValue(content);
-				this.lastKnownContent = content;
+			if (request.action === "copy") {
+				const clipboard = getRemote()?.clipboard;
+				if (!clipboard) throw new Error("系统剪贴板不可用。");
+				clipboard.writeText(request.content);
+				await this.respond({ id: request.id, message: "已复制全部 Markdown" });
 				return;
 			}
-
-			await this.app.vault.process(file, () => content);
-			this.lastKnownContent = content;
-		} catch (err) {
-			const errorMessage =
-				err instanceof Error ? err.message : String(err);
-			new Notice(`Pebble: failed to save note — ${errorMessage}`);
+			this.session.queue(request.content);
+			await this.session.flush();
+			let file: TFile | null = null;
+			switch (request.action) {
+				case "select": {
+					const target = this.app.vault.getAbstractFileByPath(normalizePath(request.target ?? ""));
+					if (!(target instanceof TFile) || target.extension !== "md") throw new Error("该笔记已不存在。");
+					file = target;
+					break;
+				}
+				case "create": file = await this.notes.createNote(request.path, request.name ?? ""); break;
+				case "daily": file = await this.notes.today(); break;
+				case "list": break;
+				default: throw new Error("未知操作。");
+			}
+			if (file) {
+				const content = await this.app.vault.read(file);
+				this.session.load(file, content);
+				this.readSettings().notePath = file.path;
+				try { await this.saveSettings(); } catch { /* The selected note remains usable for this session. */ }
+			}
+			await this.respond({ id: request.id, snapshot: this.snapshot(), changeNote: !!file });
+		} catch (error) {
+			await this.respond({ id: request.id, error: error instanceof Error ? error.message : String(error) });
 		} finally {
-			this.isSaving = false;
+			this.switching = false;
 		}
+	}
+
+	private async respond(response: PanelResponse): Promise<void> {
+		if (!this.win || this.win.isDestroyed()) return;
+		try {
+			await this.win.webContents.executeJavaScript(`window.__pebblePanel?.apply(${JSON.stringify(response)});`);
+		} catch { /* The panel may have been closed. */ }
 	}
 
 	private async reloadEditorFromVault(file: TFile): Promise<void> {
-		const content = await this.readInitialContent(file);
-		if (content === this.lastKnownContent) {
-			return;
-		}
-
-		this.lastKnownContent = content;
-		this.pendingContent = null;
-		await this.writeEditorContent(content);
-	}
-
-	private async writeEditorContent(content: string): Promise<void> {
-		if (!this.win || this.win.isDestroyed()) {
-			return;
-		}
-
-		try {
-			await this.win.webContents.executeJavaScript(
-				`window.__pebbleEditor?.setContent?.(${JSON.stringify(content)});`,
-			);
-		} catch {
-			/* no-op */
-		}
+		const content = await this.app.vault.read(file);
+		// A vault read may complete after the user starts typing or switches notes.
+		if (file !== this.session.file || this.session.dirty || this.session.isSaving || this.switching) return;
+		if (content === this.session.content) return;
+		this.session.load(file, content);
+		await this.win?.webContents.executeJavaScript(`window.__pebbleEditor?.setContent(${JSON.stringify(content)});`);
 	}
 }

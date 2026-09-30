@@ -12,7 +12,27 @@
 			<div id="note-title" aria-hidden="true" __NOTE_TITLE_HIDDEN_ATTR__>
 				__NOTE_TITLE__
 			</div>
+			<nav id="toolbar" aria-label="笔记操作">
+				<button id="select-note" type="button" aria-label="选择笔记">选择笔记 ▾</button>
+				<button id="new-note" type="button">新建</button>
+				<button id="daily-note" type="button">日记</button>
+				<button id="copy-all" type="button">全部复制</button>
+			</nav>
+			<section id="note-picker" aria-label="笔记选择与新建" hidden>
+				<button id="close-picker" type="button" aria-label="关闭选择器">×</button>
+				<div id="picker-body">
+					<input id="note-search" type="search" aria-label="搜索笔记" placeholder="搜索笔记或文件夹…" />
+					<div id="note-list"></div>
+				</div>
+				<form id="new-note-form" hidden>
+					<label for="new-note-name">新笔记名称</label>
+					<input id="new-note-name" autocomplete="off" placeholder="留空使用 Obsidian 默认名称" />
+					<p id="new-note-location"></p>
+					<button type="submit">创建笔记</button>
+				</form>
+			</section>
 			<div id="editor"></div>
+			<div id="panel-status" role="status" aria-live="polite"></div>
 		</main>
 		<script>
 			__EDITOR_SCRIPT__;
