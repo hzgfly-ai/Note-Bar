@@ -8,7 +8,7 @@ import {
 	TRAY_ICON_MONOCHROME_DATA_URL,
 } from "./icons";
 
-const GLOBAL_TRAY_KEY = "__pebble_tray_instance__";
+const GLOBAL_TRAY_KEY = "__note_bar_tray_instance__";
 
 function getGlobalTray(): ElectronTray | null {
 	const value = (
@@ -93,7 +93,7 @@ export class PebbleTray {
 
 		this.tray = new remote.Tray(trayIcon);
 		setGlobalTray(this.tray);
-		this.tray.setToolTip("Pebble");
+		this.tray.setToolTip("Note-Bar · 菜单栏便签");
 		this.tray.on("click", (_event, bounds) => {
 			onClick(bounds ?? this.tray?.getBounds());
 		});

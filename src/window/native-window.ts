@@ -180,7 +180,7 @@ export class NativeWindow {
 
 		const remote = getRemote();
 		if (!remote) {
-			new Notice("Pebble: electron remote is not available.");
+			new Notice("独立窗口接口不可用。");
 			this.opening = false;
 			return;
 		}
@@ -198,7 +198,7 @@ export class NativeWindow {
 				backgroundColor: "#00000000",
 				vibrancy: currentPlatform() === "darwin" && settings.glassEffect ? "popover" : undefined,
 				visualEffectState: currentPlatform() === "darwin" ? "active" : undefined,
-				title: `${basename} — Pebble`,
+				title: `${basename} — Note-Bar`,
 				frame: currentPlatform() === "darwin" ? false : undefined,
 				skipTaskbar: true,
 				show: false,
@@ -252,8 +252,8 @@ export class NativeWindow {
 			this.win = null;
 			const errorMessage =
 				err instanceof Error ? err.message : String(err);
-			new Notice(`Pebble: failed to open window — ${errorMessage}`);
-			console.error("Pebble: failed to open window", err);
+			new Notice(`Note-Bar: failed to open window — ${errorMessage}`);
+			console.error("Note-Bar: failed to open window", err);
 		} finally {
 			this.opening = false;
 		}

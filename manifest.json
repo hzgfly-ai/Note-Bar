@@ -1,10 +1,10 @@
 {
-	"id": "pebble",
-	"name": "菜单栏速记",
+	"id": "note-bar",
+	"name": "Note-Bar · 菜单栏便签",
 	"version": "1.0.11",
 	"minAppVersion": "1.13.0",
-	"description": "A Minimal companion for quick note taking.",
-	"author": "Pedro Reis",
-	"authorUrl": "https://github.com/pedrojreis",
+	"description": "Edit Obsidian notes from the macOS menu bar with Markdown highlighting and image support.",
+	"author": "hzgfly-ai",
+	"authorUrl": "https://github.com/hzgfly-ai",
 	"isDesktopOnly": true
 }

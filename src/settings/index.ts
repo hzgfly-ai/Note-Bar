@@ -63,7 +63,7 @@ export class PebbleSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("Note")
-			.setDesc("Choose the note that pebble opens and saves as you type.")
+			.setDesc("Choose the note to open and save as you type.")
 			.addDropdown((dropdown) => {
 				dropdown.addOption("", "Select a note");
 				const notes = this.plugin.app.vault
