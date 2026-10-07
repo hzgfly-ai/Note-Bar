@@ -38,7 +38,7 @@ export const listLayout = ViewPlugin.fromClass(
 			const font = getComputedStyle(view.contentDOM);
 			const canvas = view.dom.ownerDocument.createElement("canvas");
 			const context = canvas.getContext("2d");
-			if (context) context.font = `${font.fontSize} Menlo, monospace`;
+			if (context) context.font = `${font.fontSize} "SFMono-Regular", Menlo, monospace`;
 			this.characterWidth = (context?.measureText("0").width || view.defaultCharacterWidth) + (parseFloat(font.letterSpacing) || 0);
 			this.decorations = this.build(view);
 		}

@@ -1,15 +1,15 @@
 import type { PanelRequest, PanelResponse, PanelSnapshot } from "../window/panel-types";
 import { buildNoteTree, NoteTree } from "./note-tree";
-interface EditorAccess { getContent(): string; setNote(content: string): void; setBusy(busy: boolean): void; focus(): void }
+interface EditorAccess { getContent(): string; setNote(content: string): void; setBusy(busy: boolean): void; focus(): void; whenIdle(): Promise<void> }
 declare global {
 	interface Window {
 		__pebbleInitialPanel?: PanelSnapshot | null;
-		__pebblePanel?: { apply(response: PanelResponse): void; pause(): string };
+		__pebblePanel?: { apply(response: PanelResponse): void; pause(): Promise<string> };
 	}
 }
-export function setupPanel(editor: EditorAccess): () => string {
+export function setupPanel(editor: EditorAccess): { getPath(): string; lockMedia(value: boolean): void; status(message: string, error?: boolean): void } {
 	let snapshot = window.__pebbleInitialPanel ?? { path: "", title: "选择笔记", content: "", files: [], folders: [], newNoteFolder: "/", dailyNotesAvailable: false };
-	let pending = 0; let counter = 0;
+	let pending = 0; let counter = 0; let mediaBusy = false; let paused = false;
 	const toolbar = document.getElementById("toolbar")!;
 	const select = document.getElementById("select-note") as HTMLButtonElement;
 	const daily = document.getElementById("daily-note") as HTMLButtonElement;
@@ -22,6 +22,7 @@ export function setupPanel(editor: EditorAccess): () => string {
 	const status = document.getElementById("panel-status")!;
 	let mode: "picker" | "create" | null = null;
 	const busy = (value: boolean): void => {
+		value = value || mediaBusy || paused;
 		editor.setBusy(value || !snapshot.path);
 		toolbar.querySelectorAll<HTMLButtonElement>("button").forEach((button) => { button.disabled = value; });
 		overlay.querySelectorAll<HTMLButtonElement>("button").forEach((button) => { button.disabled = value; });
@@ -30,7 +31,7 @@ export function setupPanel(editor: EditorAccess): () => string {
 	};
 	const close = (): void => { overlay.hidden = true; mode = null; editor.focus(); };
 	const send = (action: PanelRequest["action"], extra: Partial<PanelRequest> = {}): void => {
-		if (pending) return;
+		if (pending || mediaBusy || paused) return;
 		pending = ++counter; busy(true); status.textContent = "";
 		console.debug("__pebble_action:" + JSON.stringify({ id: pending, action, path: snapshot.path, content: editor.getContent(), ...extra }));
 	};
@@ -79,15 +80,20 @@ export function setupPanel(editor: EditorAccess): () => string {
 	search.addEventListener("input", renderList);
 	document.addEventListener("keydown", (event) => { if (event.key === "Escape" && mode && !pending) { event.preventDefault(); close(); } });
 	window.__pebblePanel = {
-		pause: () => { busy(true); return editor.getContent(); },
+		pause: async () => { paused = true; busy(true); await editor.whenIdle(); return editor.getContent(); },
 		apply(response) {
+			if (response.assetsChanged) window.__pebbleEditor?.refreshImages();
 			if (response.snapshot) { snapshot = response.snapshot; if (response.changeNote) { editor.setNote(snapshot.content); close(); } metadata(); }
 			if (response.id === pending || (response.error && !pending)) {
-				pending = 0; busy(false);
+				pending = 0; paused = false; busy(false);
 				if (mode === "create") name.focus(); else if (mode === "picker") search.focus();
 			}
 			status.textContent = response.error ?? response.message ?? ""; status.dataset.error = response.error ? "true" : "false";
 		},
 	};
-	metadata(); busy(false); return () => snapshot.path;
+	metadata(); busy(false); return {
+		getPath: () => snapshot.path,
+		lockMedia(value) { mediaBusy = value; busy(!!pending); },
+		status(message, error = false) { status.textContent = message; status.dataset.error = String(error); },
+	};
 }

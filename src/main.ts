@@ -25,6 +25,10 @@ export default class PebblePlugin extends Plugin {
 		this.registerEvent(this.app.vault.on("rename", (file, oldPath) => this.overlayWindow?.handleNotePathRenamed(file, oldPath)));
 		this.registerEvent(this.app.vault.on("create", () => this.overlayWindow?.refreshCatalog()));
 		this.registerEvent(this.app.vault.on("delete", () => this.overlayWindow?.refreshCatalog()));
+		const themeObserver = new MutationObserver(() => { void this.overlayWindow?.syncAppearance(); });
+		themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+		this.register(() => themeObserver.disconnect());
+		this.registerEvent(this.app.workspace.on("css-change", () => { void this.overlayWindow?.syncAppearance(); }));
 
 		this.registerEvent(
 			this.app.vault.on("modify", (file) => {
@@ -33,6 +37,7 @@ export default class PebblePlugin extends Plugin {
 		);
 
 		this.createTray();
+		this.addCommand({ id: "toggle-panel", name: "打开或收起速记面板", callback: () => { void this.overlayWindow?.toggle(); } });
 
 		this.addSettingTab(new PebbleSettingTab(this.app, this));
 	}
@@ -52,6 +57,7 @@ export default class PebblePlugin extends Plugin {
 
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
+		await this.overlayWindow?.syncAppearance();
 	}
 
 	private async loadSettings(): Promise<void> {

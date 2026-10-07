@@ -1,4 +1,5 @@
 /** Plain data shared with the isolated panel renderer. */
+export interface PanelAppearance { theme: "light" | "dark"; glass: boolean }
 export interface PanelSnapshot {
 	path: string;
 	title: string;
@@ -24,4 +25,5 @@ export interface PanelResponse {
 	changeNote?: boolean;
 	error?: string;
 	message?: string;
+	assetsChanged?: boolean;
 }

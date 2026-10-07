@@ -6,7 +6,7 @@ import {
 	normalizePath,
 } from "obsidian";
 
-export type PebbleThemeMode = "light" | "dark";
+export type PebbleThemeMode = "auto" | "light" | "dark";
 
 export interface WindowPosition {
 	x: number;
@@ -18,6 +18,7 @@ export interface PebbleSettings {
 	monochromeTrayIcon: boolean;
 	showNoteTitle: boolean;
 	themeMode: PebbleThemeMode;
+	glassEffect: boolean;
 	/** Saved window position per OS platform — a position saved on one device
 	 * (e.g. Windows) shouldn't be reused on another (e.g. macOS) when settings
 	 * are synced across devices. */
@@ -33,7 +34,8 @@ export const DEFAULT_SETTINGS: PebbleSettings = {
 	notePath: "",
 	monochromeTrayIcon: false,
 	showNoteTitle: true,
-	themeMode: "dark",
+	themeMode: "auto",
+	glassEffect: true,
 	windowPositions: {},
 	windowWidth: 420,
 	windowHeight: 320,
@@ -108,21 +110,27 @@ export class PebbleSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Color mode")
-			.setDesc(
-				"Choose whether the pebble editor uses a white or dark background.",
-			)
+			.setName("面板主题")
+			.setDesc("跟随 Obsidian 当前主题，或固定使用浅色／深色。打开的面板会立即更新。")
 			.addDropdown((dropdown) => {
 				dropdown
-					.addOption("light", "White mode")
-					.addOption("dark", "Dark mode")
+					.addOption("auto", "跟随 Obsidian")
+					.addOption("light", "浅色")
+					.addOption("dark", "深色")
 					.setValue(this.plugin.settings.themeMode)
 					.onChange(async (value) => {
-						if (value !== "light" && value !== "dark") return;
+						if (value !== "auto" && value !== "light" && value !== "dark") return;
 						this.plugin.settings.themeMode = value;
 						await this.plugin.saveSettings();
 					});
 			});
+
+		new Setting(containerEl)
+			.setName("磨砂玻璃效果")
+			.setDesc("macOS 使用系统背景模糊与半透明面板；关闭后恢复纯色。其他系统使用纯色。")
+			.addToggle((toggle) => toggle.setValue(this.plugin.settings.glassEffect).onChange(async (value) => {
+				this.plugin.settings.glassEffect = value; await this.plugin.saveSettings();
+			}));
 
 		new Setting(containerEl)
 			.setName("Horizontal tray offset")

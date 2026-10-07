@@ -42,6 +42,11 @@ interface ElectronBrowserWindowOptions {
 	skipTaskbar?: boolean;
 	type?: "panel";
 	acceptFirstMouse?: boolean;
+	backgroundColor?: string;
+	vibrancy?: "popover";
+	visualEffectState?: "active";
+	minWidth?: number;
+	minHeight?: number;
 	webPreferences?: {
 		nodeIntegration?: boolean;
 		contextIsolation?: boolean;
@@ -59,6 +64,8 @@ export interface ElectronBrowserWindowInstance {
 	setPosition(x: number, y: number, animate?: boolean): void;
 	getPosition(): [number, number];
 	getSize(): [number, number];
+	setVibrancy?(type: "popover" | null): void;
+	setBackgroundColor?(color: string): void;
 	on(event: string, callback: () => void): void;
 	webContents: ElectronWebContents;
 }

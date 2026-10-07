@@ -11,8 +11,14 @@ import { DEFAULT_SETTINGS } from "../settings";
 import type { App, TFile } from "obsidian";
 import { NoteSession } from "./note-session";
 import type { PanelRequest, PanelResponse } from "./panel-types";
+import type { MediaRequest } from "./media-types";
+import type { ElectronBrowserWindowInstance } from "../electron/utils";
+import type { ImageService } from "./image-service";
 vi.mock("../settings", () => ({ DEFAULT_SETTINGS: { notePath: "", windowPositions: {} } }));
-interface TestPanel { session: NoteSession<TFile>; handleAction(request: PanelRequest): Promise<void>; respond(response: PanelResponse): Promise<void> }
+interface TestPanel {
+	session: NoteSession<TFile>; handleAction(request: PanelRequest): Promise<void>; respond(response: PanelResponse): Promise<void>;
+	handleMedia(request: MediaRequest): Promise<void>; images: ImageService; win: ElectronBrowserWindowInstance | null;
+}
 beforeEach(() => { vi.clearAllMocks(); vi.stubGlobal("window", { require: () => ({ clipboard: { writeText: mocks.copy } }) }); });
 function fixture() {
 	const a = new mocks.File("A.md"); const b = new mocks.File("目录/B.md");
@@ -71,6 +77,22 @@ describe("panel actions", () => {
 	it("rejects paths in new note names instead of creating unexpected directories", async () => {
 		const f = fixture(); await f.panel.handleAction(f.request("create", { name: "../其他笔记" }));
 		expect(f.create).not.toHaveBeenCalled(); expect(f.responses[0]?.error).toContain("特殊字符");
+	});
+	it("rejects stale image pastes before creating an attachment in another note", async () => {
+		const f = fixture(); const paste = vi.spyOn(f.panel.images, "paste");
+		await f.panel.handleMedia({ id: 1, action: "paste", path: "旧笔记.md", mime: "image/png", chunks: 1 });
+		expect(paste).not.toHaveBeenCalled();
+	});
+	it("does not deliver a slow image result to a newly opened panel", async () => {
+		const f = fixture(); let finish!: (url: string) => void; let destroyed = false;
+		vi.spyOn(f.panel.images, "resolve").mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+		const oldReply = vi.fn(); const newReply = vi.fn();
+		f.panel.win = { isDestroyed: () => destroyed, webContents: { executeJavaScript: oldReply } } as unknown as ElectronBrowserWindowInstance;
+		const pending = f.panel.handleMedia({ id: 1, action: "resolve", path: "A.md", target: "图.png" });
+		destroyed = true;
+		f.panel.win = { isDestroyed: () => false, webContents: { executeJavaScript: newReply } } as unknown as ElectronBrowserWindowInstance;
+		finish("data:image/png;base64,AQID"); await pending;
+		expect(oldReply).not.toHaveBeenCalled(); expect(newReply).not.toHaveBeenCalled();
 	});
 
 });

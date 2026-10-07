@@ -10,6 +10,9 @@ import { PebbleSettings } from "../settings";
 import { NoteService } from "./note-service";
 import { NoteSession } from "./note-session";
 import { PanelRequest, PanelResponse, PanelSnapshot } from "./panel-types";
+import { ImageService } from "./image-service";
+import { MediaRequest, MediaResponse, MediaChunk, MediaTransfers } from "./media-types";
+import { resolveTheme } from "./appearance";
 
 function currentPlatform(): NodeJS.Platform {
 	return process.platform;
@@ -27,6 +30,9 @@ export class NativeWindow {
 	private switching = false;
 	private closePromise: Promise<void> | null = null;
 	private suppressModifyUntil = 0;
+	private images: ImageService;
+	private transfers = new MediaTransfers();
+	private glassActive = false;
 
 	constructor(
 		app: App,
@@ -37,6 +43,7 @@ export class NativeWindow {
 		this.readSettings = readSettings;
 		this.saveSettings = saveSettings;
 		this.notes = new NoteService(app);
+		this.images = new ImageService(app);
 		this.session = new NoteSession(async (file, content) => {
 			this.suppressModifyUntil = Date.now() + 1500;
 			const active = this.app.workspace.getActiveFile();
@@ -79,6 +86,7 @@ export class NativeWindow {
 			// keystroke whose console-message event may still be in transit.
 			if (this.win && !this.win.isDestroyed()) {
 				const content = await this.win.webContents.executeJavaScript("window.__pebblePanel?.pause()");
+				await this.actions;
 				if (typeof content === "string") this.session.queue(content);
 			}
 			await this.session.flush();
@@ -88,6 +96,7 @@ export class NativeWindow {
 		}
 		this.session.load(null, "");
 		this.suppressModifyUntil = 0;
+		this.transfers.clear();
 
 		if (!this.win || this.win.isDestroyed()) {
 			this.win = null;
@@ -124,7 +133,7 @@ export class NativeWindow {
 
 	refreshCatalog(): void {
 		if (this.isOpen() && !this.switching && !this.closePromise) {
-			void this.respond({ snapshot: this.snapshot() });
+			void this.respond({ snapshot: this.snapshot(), assetsChanged: true });
 		}
 	}
 
@@ -143,6 +152,9 @@ export class NativeWindow {
 	}
 
 	onVaultModify(file: TAbstractFile): void {
+		if (file instanceof TFile && file.extension !== "md" && this.isOpen()) {
+			void this.respond({ assetsChanged: true }); return;
+		}
 		if (
 			!(file instanceof TFile) ||
 			file.extension !== "md" ||
@@ -181,6 +193,11 @@ export class NativeWindow {
 			const win = new remote.BrowserWindow({
 				width: settings.windowWidth,
 				height: settings.windowHeight,
+				minWidth: 340,
+				minHeight: 240,
+				backgroundColor: "#00000000",
+				vibrancy: currentPlatform() === "darwin" && settings.glassEffect ? "popover" : undefined,
+				visualEffectState: currentPlatform() === "darwin" ? "active" : undefined,
 				title: `${basename} — Pebble`,
 				frame: currentPlatform() === "darwin" ? false : undefined,
 				skipTaskbar: true,
@@ -203,13 +220,16 @@ export class NativeWindow {
 			// toggles it closed explicitly, saving pending content first.
 
 			this.win = win;
+			this.listenForEditorChanges();
+			this.glassActive = this.configureGlass();
 
 			const html = buildEditorHTML(
 				initialContent,
 				basename,
 				settings.showNoteTitle,
-				settings.themeMode,
+				resolveTheme(settings.themeMode, document.body.classList.contains("theme-dark")),
 				this.snapshot(),
+				this.glassActive,
 			);
 			const editorDataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(
 				html,
@@ -222,7 +242,7 @@ export class NativeWindow {
 			} else {
 				this.positionNearTray(win, remote, anchorBounds, settings);
 			}
-			this.listenForEditorChanges();
+			await this.syncAppearance();
 			win.show();
 			// Explicit focus activates the owning app on macOS, defeating
 			// the panel's non-activating behavior. show() makes it key already.
@@ -297,9 +317,16 @@ export class NativeWindow {
 			// Electron supports both the legacy positional and newer details event.
 			const details = args[1] as { message?: unknown } | undefined;
 			const message = typeof args[2] === "string" ? args[2] : details?.message;
-			if (typeof message !== "string" || this.closePromise) return;
+			if (typeof message !== "string") return;
 			try {
-				if (message.startsWith("__pebble_save:")) {
+				if (message.startsWith("__pebble_media_chunk:")) {
+					this.transfers.add(JSON.parse(message.slice("__pebble_media_chunk:".length)) as MediaChunk);
+				} else if (message.startsWith("__pebble_media:")) {
+					const request = JSON.parse(message.slice("__pebble_media:".length)) as MediaRequest;
+					if (request.action === "paste") this.actions = this.actions.then(() => this.handleMedia(request));
+					else void this.handleMedia(request);
+				} else if (this.closePromise) return;
+				else if (message.startsWith("__pebble_save:")) {
 					const data = JSON.parse(message.slice("__pebble_save:".length)) as { path: string; content: string };
 					if (data.path === this.session.file?.path && typeof data.content === "string" && !this.switching) {
 						this.session.queue(data.content);
@@ -311,6 +338,39 @@ export class NativeWindow {
 				}
 			} catch { /* Ignore malformed renderer messages. */ }
 		});
+	}
+
+	private async handleMedia(request: MediaRequest): Promise<void> {
+		// Replies belong to the window that sent the request, including slow reads.
+		const win = this.win;
+		const response: MediaResponse = { id: request.id, path: request.path };
+		try {
+			if (!Number.isSafeInteger(request.id) || request.path !== this.session.file?.path) throw new Error("笔记已变化，请重新操作。");
+			if (request.action === "resolve") response.url = await this.images.resolve(request.path, request.target ?? "");
+			else if (request.action === "paste") response.markdown = await this.images.paste(request.path, request.name ?? "", request.mime ?? "", this.transfers.take(request.id, request.chunks));
+			else throw new Error("未知图片操作。");
+		} catch (error) { response.error = error instanceof Error ? error.message : String(error); }
+		if (!win || win.isDestroyed()) return;
+		try { await win.webContents.executeJavaScript(`window.__pebbleMedia?.apply(${JSON.stringify(response)});`); } catch { /* Window closed. */ }
+	}
+
+	private configureGlass(): boolean {
+		if (!this.win || currentPlatform() !== "darwin") return false;
+		try {
+			if (!this.win.setVibrancy) return false;
+			this.win.setVibrancy(this.readSettings().glassEffect ? "popover" : null);
+			return this.readSettings().glassEffect;
+		} catch { return false; }
+	}
+
+	async syncAppearance(): Promise<void> {
+		if (!this.win || this.win.isDestroyed()) return;
+		const theme = resolveTheme(this.readSettings().themeMode, document.body.classList.contains("theme-dark"));
+		this.glassActive = this.configureGlass();
+		try {
+			this.win.setBackgroundColor?.(this.glassActive ? "#00000000" : theme === "dark" ? "#0f1114" : "#ffffff");
+			await this.win.webContents.executeJavaScript(`window.__pebbleAppearance?.apply(${JSON.stringify({ theme, glass: this.glassActive })});`);
+		} catch { /* Panel closed while synchronizing. */ }
 	}
 
 	private async handleAction(request: PanelRequest): Promise<void> {

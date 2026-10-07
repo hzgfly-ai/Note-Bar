@@ -13,9 +13,10 @@ export function buildEditorHTML(
 	showNoteTitle: boolean,
 	themeMode: PebbleThemeMode,
 	panel?: PanelSnapshot,
+	glass = false,
 ): string {
 	const normalizedTheme = themeMode === "light" ? "light" : "dark";
-	const themeBodyAttr = `data-pebble-theme="${normalizedTheme}"`;
+	const themeBodyAttr = `data-pebble-theme="${normalizedTheme}" data-pebble-glass="${glass}"`;
 	const escapedNoteTitleForHtml = noteTitle
 		.replace(/&/g, "&amp;")
 		.replace(/</g, "&lt;")
