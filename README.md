@@ -15,7 +15,7 @@
 
 ## 安装
 
-当前已公开源码，尚未发布安装包或上架社区目录。后续安装包见 [Releases](https://github.com/hzgfly-ai/Note-Bar/releases)。
+从 [Releases](https://github.com/hzgfly-ai/Note-Bar/releases) 下载 `main.js`、`manifest.json`、`styles.css`。社区插件目录上架后可直接搜索安装。
 
 从源码构建（Node.js 24）：
 

@@ -1,7 +1,7 @@
 {
 	"id": "note-bar",
 	"name": "Note-Bar · 菜单栏便签",
-	"version": "1.0.11",
+	"version": "1.0.12",
 	"minAppVersion": "1.13.0",
 	"description": "Edit Obsidian notes from the macOS menu bar with Markdown highlighting and image support.",
 	"author": "hzgfly-ai",
