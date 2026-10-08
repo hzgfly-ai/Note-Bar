@@ -4,6 +4,10 @@ Note-Bar is a macOS-focused Obsidian menu-bar editor, based on [Pebble](https://
 
 在菜单栏直接编辑 Obsidian 笔记。Obsidian 需要保持运行，但主窗口可以留在后台；切换应用、桌面或全屏应用时，速记面板保持打开，再次点击菜单栏图标保存并收起。
 
+## 演示
+
+<img src="images/note-bar-demo.png" alt="Note-Bar 菜单栏便签：Markdown 标题、强调和图片预览" width="460">
+
 这是由 [hzgfly-ai](https://github.com/hzgfly-ai) 维护的 Pebble 衍生版本。原项目由 [Pedro Reis](https://github.com/pedrojreis) 开发，本仓库保留原项目的 Git 历史与 MIT 许可。本版本尚未上架 Obsidian 社区插件目录；目录中的 Pebble 是原作者维护的版本。
 
 ## 功能
