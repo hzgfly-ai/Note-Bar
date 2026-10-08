@@ -1,6 +1,6 @@
 {
 	"name": "note-bar",
-	"version": "1.0.13",
+	"version": "1.0.14",
 	"description": "An Obsidian menu-bar note editor, based on Pebble.",
 	"main": "main.js",
 	"type": "module",

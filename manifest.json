@@ -1,9 +1,9 @@
 {
 	"id": "note-bar",
 	"name": "Note-Bar",
-	"version": "1.0.13",
+	"version": "1.0.14",
 	"minAppVersion": "1.13.0",
-	"description": "Edit Obsidian notes from the macOS menu bar with Markdown highlighting and image support.",
+	"description": "Edit notes from the macOS menu bar with Markdown highlighting and inline image previews.",
 	"author": "hzgfly-ai",
 	"authorUrl": "https://github.com/hzgfly-ai",
 	"isDesktopOnly": true

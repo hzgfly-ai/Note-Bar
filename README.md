@@ -2,6 +2,8 @@
 
 在 macOS 菜单栏直接编辑 Obsidian 笔记。主窗口可以留在后台，切换应用或桌面时面板保持打开，再次点击菜单栏图标保存并收起。
 
+A macOS menu bar editor with Markdown highlighting, inline images, folder navigation, new notes, daily notes, and copy-all. The main window can stay in the background.
+
 ## 演示
 
 <img src="images/note-bar-demo.png" alt="Note-Bar 菜单栏便签：Markdown 标题、强调和图片预览" width="460">
@@ -13,7 +15,9 @@
 - **图片**：粘贴后按 Obsidian 附件设置保存，直接预览、拖动缩放，保留原图。
 - **外观**：跟随 Obsidian 浅色／深色主题，支持 macOS 磨砂背景。
 
-## 安装
+## Installation / 安装
+
+Download `main.js`, `manifest.json`, and `styles.css` from [Releases](https://github.com/hzgfly-ai/Note-Bar/releases) into `<vault>/.obsidian/plugins/note-bar/`. Reload Obsidian, enable Note-Bar in Community plugins, and select a starting note in its settings.
 
 从 [Releases](https://github.com/hzgfly-ai/Note-Bar/releases) 下载 `main.js`、`manifest.json`、`styles.css`。社区插件目录上架后可直接搜索安装。
 
@@ -26,7 +30,9 @@ npm run build
 
 将 `main.js`、`manifest.json`、`styles.css` 放入 `<你的仓库>/.obsidian/plugins/note-bar/`，重新加载 Obsidian 并启用插件，在插件设置中选择初始笔记。
 
-## 使用须知
+## Usage / 使用须知
+
+Keep Obsidian 1.13.0 or newer running. Click the menu bar icon to open or close the editor; choose notes by folder or use New, Daily note, and Copy all. This release targets macOS.
 
 - 需要 Obsidian **1.13.0 或以上**保持运行；当前以 macOS 为验收目标，不支持移动端。
 - 日记功能需启用核心「日记」插件；单张粘贴图片上限 **32 MB**。
